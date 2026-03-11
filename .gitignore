@@ -1,2 +1,6 @@
 .idea/
 __pycache__/
+*.java
+AGENTS.md
+change.md
+rules_plus.json

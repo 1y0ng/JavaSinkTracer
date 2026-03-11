@@ -1,14 +1,24 @@
-"""
-@File：JavaCodeExtract.py
-@Time：2025/06/21 09:27
-@Auth：Tr0e
-@Github：https://github.com/Tr0e
-@Description：基于javalang库，从Java源代码项目提取函数源码
-"""
 import os
 import javalang
 
 def extract_method_definition(root_dir, class_name, method_name):
+    """
+    在指定目录及其子目录中搜索并提取指定类中的指定方法定义。
+
+    该函数遍历给定根目录下的所有 Java 文件，解析每个文件的语法树，
+    查找匹配的类名和方法名，并返回该方法的完整代码块及其所在文件路径。
+
+    参数:
+        root_dir (str): 要搜索的根目录路径。
+        class_name (str): 目标类的名称。
+        method_name (str): 目标方法的名称。
+
+    返回值:
+        tuple: 包含两个元素的元组：
+            - filepath (str 或 None): 找到方法定义的 Java 文件路径；若未找到则为 None。
+            - definition (str 或 None): 方法的完整代码块字符串；若未找到则为 None。
+    """
+    # 遍历根目录下所有文件，仅处理 .java 文件
     for dirpath, _, filenames in os.walk(root_dir):
         for filename in filenames:
             if not filename.endswith('.java'):
@@ -21,9 +31,12 @@ def extract_method_definition(root_dir, class_name, method_name):
                 tree = javalang.parse.parse(content)
             except (IOError, javalang.parser.JavaSyntaxError, IndexError):
                 continue
+            
+            # 在语法树中查找匹配的类或接口声明
             for node_type in (javalang.tree.ClassDeclaration, javalang.tree.InterfaceDeclaration):
                 for _, node in tree.filter(node_type):
                     if node.name == class_name:
+                        # 在匹配的类中查找目标方法
                         for method in node.methods:
                             if method.name == method_name and method.position:
                                 definition = _extract_code_block(lines, method.position.line - 1)
