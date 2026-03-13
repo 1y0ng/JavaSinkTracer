@@ -4,3 +4,6 @@ __pycache__/
 AGENTS.md
 change.md
 rules_plus.json
+my_rules.json
+run.log
+Result/*/*.json

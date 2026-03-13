@@ -17,9 +17,10 @@ init(autoreset=True)
 
 
 class JavaSinkTracer:
-    def __init__(self, project_path: str, rules_path: str, force_default_rules: bool = False):
+    def __init__(self, project_path: str, rules_path: str, force_default_rules: bool = False, skip_extract: bool = False):
         self.project_path = project_path
         self.force_default_rules = force_default_rules  # 是否强制使用默认规则文件
+        self.skip_extract = skip_extract  # 是否跳过函数内容提取
         self.call_graph: Dict[str, List[str]] = {}
         self.class_methods: Dict[str, Dict[str, Union[str, Dict[str, Dict[str, bool]]]]] = {}
         self.interface_implementations: Dict[str, List[str]] = {}  # 接口到实现类的映射
@@ -202,32 +203,67 @@ class JavaSinkTracer:
             返回值:
                 无（该方法通过修改实例属性完成数据收集）。
             """
+            # Spring MVC / JAX-RS 方法级别注解
             MAPPING_ANNOTATIONS = {
                 "GetMapping", "PostMapping", "RequestMapping", "PutMapping", "DeleteMapping",
                 "Path", "GET", "POST", "PUT", "DELETE"
             }
+            # Struts2 类级别注解
+            STRUTS2_CLASS_ANNOTATIONS = {
+                "Namespace", "Action", "ParentPackage", "InterceptorRef", "Results"
+            }
+            # Struts2 方法级别注解
+            STRUTS2_METHOD_ANNOTATIONS = {
+                "Action"
+            }
+            
             # 遍历所有类声明节点，提取类名、方法信息及继承/实现关系
             for path, node in code_tree.filter(ClassDeclaration):
                 class_name = node.name
                 methods_info = {}
-                # 提取当前类中每个方法的关键属性：是否需要参数、是否带有Web映射注解
+                
+                # 判断是否是 Struts2 Action 类
+                is_struts2_action = False
+                # 1. 检查类上的 Struts2 注解
+                if node.annotations:
+                    for annotation in node.annotations:
+                        annotation_name = annotation.name.lstrip("@")
+                        if annotation_name in STRUTS2_CLASS_ANNOTATIONS:
+                            is_struts2_action = True
+                            break
+                # 2. 检查类名是否以 Action 结尾
+                if not is_struts2_action and class_name.endswith("Action"):
+                    is_struts2_action = True
+                # 提取当前类中每个方法的关键属性：是否需要参数、是否带有Web映射注解、是否是Struts2入口方法
                 for method_node in node.methods:
                     method_name = method_node.name
                     requires_params = len(method_node.parameters) > 0
                     has_mapping_annotation = False
+                    is_struts2_entry = False
+                    
+                    # 检查方法级别注解
                     if method_node.annotations:
                         for annotation in method_node.annotations:
                             annotation_name = annotation.name.lstrip("@")
                             if annotation_name in MAPPING_ANNOTATIONS:
                                 has_mapping_annotation = True
-                                break
+                            if annotation_name in STRUTS2_METHOD_ANNOTATIONS:
+                                is_struts2_entry = True
+                    
+                    # 如果类是 Struts2 Action 类，检查方法名是否是默认入口方法
+                    if is_struts2_action:
+                        is_struts2_entry = True
+                    
                     methods_info[method_name] = {
                         "requires_params": requires_params,
-                        "has_mapping_annotation": has_mapping_annotation
+                        "has_mapping_annotation": has_mapping_annotation,
+                        "is_struts2_entry": is_struts2_entry
                     }
+                
                 self.class_methods[class_name] = {
                     "file_path": file_path,
-                    "methods": methods_info
+                    "methods": methods_info,
+                    "is_struts2_action": is_struts2_action
                 }
     
                 # 提取继承关系
@@ -559,7 +595,7 @@ class JavaSinkTracer:
             print(Fore.RED + f"[!]写入规则文件失败：{e}")
 
         # 生成函数内容文件
-        if new_sinks:
+        if new_sinks and not self.skip_extract:
             self._write_func_file(new_sinks, vul_type_info)
 
     def _write_func_file(self, sinks: List[str], vul_type_info: dict):
@@ -644,16 +680,26 @@ class JavaSinkTracer:
 
     def is_entry_point(self, method: str) -> bool:
         """
-        判断当前追溯到的函数是否已经是程序的外部入口点（MAPPING_ANNOTATIONS相关函数）
+        判断当前追溯到的函数是否已经是程序的外部入口点
+        支持：Spring MVC、JAX-RS、Struts2 框架的入口点识别
         """
         class_name, method_name = method.split(":")
         is_method_entry_point = False
+        is_class_entry_point = False
         class_info = self.class_methods.get(class_name, {})
         method_info = class_info.get("methods", {}).get(method_name, {})
+        
         if method_info:
-            # 方法是否被标记了 Web 路由注解（如 @PostMapping），
+            # 1. 检查方法是否被标记了 Spring MVC / JAX-RS Web 路由注解
             is_method_entry_point = method_info.get("has_mapping_annotation", False)
-        return is_method_entry_point
+            
+            # 2. 检查方法是否是 Struts2 入口方法
+            if not is_method_entry_point:
+                is_method_entry_point = method_info.get("is_struts2_entry", False)
+        if class_info:
+            is_class_entry_point = class_info.get("is_struts2_action", False)
+        # print(method,is_method_entry_point,class_info.get("is_struts2_action"))
+        return is_method_entry_point or is_class_entry_point
 
     def save_cache(self, cache_file: str):
         """
@@ -750,11 +796,12 @@ def run():
     # parser.add_argument('-o', "--outputPath", type=str, default='Result', help=f"指定扫描报告输出的本地路径根目录，默认值：当前项目根路径下的 Result 子文件夹")
     parser.add_argument('-r', "--rebuild", action='store_true', help=f"强制重新构建 AST，忽略已存在的缓存文件")
     parser.add_argument('-f', "--force-default-rules", action='store_true', help=f"强制使用默认规则文件（Rules/rules.json），忽略项目中的规则文件")
+    parser.add_argument('-n', "--no-extract", action='store_true', help=f"不提取函数内容，仅生成调用链")
     args = parser.parse_args()
     java_project_path = args.projectPath.replace('\\', '/')
     java_project_name = java_project_path.rstrip('/').split('/')[-1]
     print(f'[+]待扫描的project_name: {java_project_name}, project_path: {java_project_path}')
-    analyzer = JavaSinkTracer(java_project_path, "Rules/rules_plus.json", force_default_rules=args.force_default_rules)
+    analyzer = JavaSinkTracer(java_project_path, "Rules/my_rules.json", force_default_rules=args.force_default_rules, skip_extract=args.no_extract)
     analyzer.build_ast(force_rebuild=args.rebuild)
     vulnerabilities = analyzer.find_taint_paths()
     print(Fore.LIGHTGREEN_EX + f"[+]代码审计结果汇总：\n{json.dumps(vulnerabilities, indent=2, ensure_ascii=False)}")
