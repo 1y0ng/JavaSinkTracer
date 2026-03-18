@@ -120,3 +120,57 @@ options:
 - 在 `variable_symbols` 字典中查找变量的类型并构建正确的调用关系
 
 本次修改主要解决了 Java 静态分析中的多态性问题，包括：接口多态、继承多态、解析顺序无关性、AST 缓存机制、规则自动生成与使用、容错性增强、this 关键字支持。这些改进使得 JavaSinkTracer 能够更准确地追踪污点传播路径，减少因多态导致的漏报问题，同时提升了扫描效率。
+
+### 7. 模块化架构重构
+
+原 `JavaSinkTracer.py` 文件（819 行）职责过于集中，不利于维护和扩展。现已拆分为独立的功能模块，统一放置在 `sinktracer/` 文件夹中。
+
+#### 模块结构
+
+```
+sinktracer/
+├── __init__.py        # 包初始化，导出所有公开接口
+├── config.py          # 配置与常量模块
+├── models.py          # 数据模型模块
+├── rule_manager.py    # 规则管理模块
+├── ast_builder.py     # AST 构建模块
+├── call_graph.py      # 调用图构建模块
+├── taint_analyzer.py  # 污点分析模块
+├── cache_manager.py   # 缓存管理模块
+└── entry_detector.py  # 入口点检测模块
+```
+
+
+#### 模块依赖关系
+
+```
+config.py ←────────────────────────────┐
+models.py ←────────────────────────────┤
+                                       │
+rule_manager.py                        │
+ast_builder.py ──→ call_graph.py       │
+      │                                │
+      └──→ cache_manager.py            │
+              ↓                        │
+        taint_analyzer.py ──→ entry_detector.py
+              ↓                        │
+        JavaSinkTracer.py ─────────────┘
+              (主入口)
+```
+
+
+
+### 8. 链式调用类型推断
+
+#### 问题描述
+
+对于链式调用 `a().b()`，工具无法正确识别方法 `b` 所属的类型，导致错误地将 `b` 归属到当前类而非 `a()` 的返回类型。
+
+#### 问题根源
+
+javalang 解析链式调用时，`a()` 和 `b()` 作为两个独立的节点遍历，`b()` 的 `qualifier` 属性为 `None`，无法直接获取调用者信息。
+
+#### 解决方案
+
+- **AST 构建阶段**：收集所有方法的返回类型，建立 `"类名:方法名" -> 返回类型` 的映射
+- **链式调用检测**：当方法调用无 `qualifier` 时，向上遍历 AST 查找是否存在父级方法调用包含当前节点，若有则从返回类型映射中获取基础类型

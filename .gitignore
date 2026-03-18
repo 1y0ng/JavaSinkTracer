@@ -6,4 +6,5 @@ change.md
 rules_plus.json
 my_rules.json
 run.log
+test.py
 Result/*/*.json
