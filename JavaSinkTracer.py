@@ -175,7 +175,8 @@ class JavaSinkTracer:
             self.call_graph_builder.get_call_graph(),
             self.ast_builder.get_class_methods(),
             self.rule_manager,
-            self.entry_detector
+            self.entry_detector,
+            self.ast_builder.get_parent_child_map()
         )
         
         return self.taint_analyzer.find_taint_paths()
