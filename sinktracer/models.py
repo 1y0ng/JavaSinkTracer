@@ -71,6 +71,9 @@ MethodReturnTypes = Dict[str, str]
 # 导入映射：键为简单类名，值为全限定类名
 ImportMapping = Dict[str, str]
 
+# 类名到 Java 文件路径的映射
+ClassFileMapping = Dict[str, str]
+
 
 # ============================================================================
 # Sink 点映射类型定义
@@ -136,6 +139,7 @@ class CacheData(TypedDict):
     Attributes:
         call_graph: 调用图
         class_methods: 类方法映射
+        class_file_mapping: 类名到 Java 文件路径的映射
         interface_implementations: 接口实现映射
         class_interfaces: 类接口映射
         parent_child_map: 父类到子类映射
@@ -146,6 +150,7 @@ class CacheData(TypedDict):
     """
     call_graph: CallGraph
     class_methods: ClassMethodsMap
+    class_file_mapping: ClassFileMapping
     interface_implementations: InterfaceImplementations
     class_interfaces: ClassInterfaces
     parent_child_map: ParentChildMap

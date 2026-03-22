@@ -60,7 +60,6 @@ options:
   -p PROJECTPATH, --projectPath PROJECTPATH
                         待扫描的项目本地路径根目录，默认值：D:/Code/Github/java-sec-code
   -r, --rebuild         强制重新构建 AST，忽略已存在的缓存文件
-  -f, --force-default-rules 强制使用默认规则文件（Rules/rules.json），忽略项目中的规则文件
 ```
 
 ## 核心修改内容

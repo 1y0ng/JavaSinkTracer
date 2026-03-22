@@ -39,6 +39,7 @@ class ASTBuilder:
         project_path: 项目路径
         path_exclusions: 排除的目录路径列表
         class_methods: 类方法映射
+        class_file_mapping: 类名到 Java 文件路径的映射
         interface_implementations: 接口到实现类的映射
         class_interfaces: 类到实现的接口的映射
         parent_child_map: 父类到子类的映射
@@ -58,6 +59,7 @@ class ASTBuilder:
         
         # 初始化数据结构
         self.class_methods: ClassMethodsMap = {}
+        self.class_file_mapping: Dict[str, str] = {}
         self.interface_implementations: InterfaceImplementations = {}
         self.class_interfaces: ClassInterfaces = {}
         self.parent_child_map: ParentChildMap = {}
@@ -171,6 +173,9 @@ class ASTBuilder:
                 "methods": methods_info,
                 "is_struts2_action": is_struts2_action
             }
+            
+            # 存储类名到文件路径的映射
+            self.class_file_mapping[class_name] = file_path
             
             # 提取继承关系
             self._extract_inheritance(node, class_name)
@@ -339,3 +344,12 @@ class ASTBuilder:
             简单类名到全限定类名的映射
         """
         return self.import_mapping
+    
+    def get_class_file_mapping(self) -> Dict[str, str]:
+        """
+        获取类名到 Java 文件路径的映射
+        
+        Returns:
+            类名到 Java 文件路径的映射
+        """
+        return self.class_file_mapping

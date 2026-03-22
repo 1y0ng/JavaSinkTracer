@@ -23,7 +23,7 @@ from colorama import Fore
 
 from .models import (CacheData, CallGraph, ClassMethodsMap, InterfaceImplementations, 
                      ClassInterfaces, ParentChildMap, ChildParentMap, 
-                     MethodReturnTypes, ImportMapping)
+                     MethodReturnTypes, ImportMapping, ClassFileMapping)
 
 if TYPE_CHECKING:
     from .ast_builder import ASTBuilder
@@ -126,6 +126,7 @@ class CacheManager:
         cache_data: CacheData = {
             "call_graph": call_graph_builder.get_call_graph(),
             "class_methods": ast_builder.get_class_methods(),
+            "class_file_mapping": ast_builder.get_class_file_mapping(),
             "interface_implementations": ast_builder.get_interface_implementations(),
             "class_interfaces": ast_builder.get_class_interfaces(),
             "parent_child_map": ast_builder.get_parent_child_map(),
@@ -159,7 +160,7 @@ class CacheManager:
         ]
         
         # 新增字段（可选，用于向后兼容）
-        optional_keys = ["method_return_types", "import_mapping"]
+        optional_keys = ["method_return_types", "import_mapping", "class_file_mapping"]
         
         # 检查必需字段
         has_required = all(key in cache_data for key in required_keys)

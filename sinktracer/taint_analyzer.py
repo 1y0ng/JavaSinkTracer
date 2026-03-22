@@ -169,10 +169,6 @@ class TaintAnalyzer:
                 continue
             else:
                 print(Fore.MAGENTA + f"[*]需要追溯调用点: {caller_methods}")
-                
-                # 如果不使用 -f 参数，发现需要追溯调用点就写入规则文件
-                if not self.rule_manager.force_default_rules:
-                    self.rule_manager.write_rule_file(sink, caller_methods)
             
             for caller in caller_methods:
                 new_path = [caller] + current_path
@@ -181,11 +177,6 @@ class TaintAnalyzer:
                 if self.entry_detector.is_entry_point(caller):
                     paths.append(new_path)
                     print(Fore.LIGHTGREEN_EX + f"[✓]发现完整调用链: {new_path}")
-                    
-                    # 如果使用 -f 参数，只在发现完整调用链时写入倒数第二个节点
-                    if self.rule_manager.force_default_rules and len(new_path) >= 2:
-                        caller_to_write = new_path[-2]
-                        self.rule_manager.write_rule_file(sink, [caller_to_write])
                 else:
                     queue.append((new_path, current_depth + 1))
         

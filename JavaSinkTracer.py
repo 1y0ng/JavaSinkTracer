@@ -27,8 +27,6 @@ class JavaSinkTracer:
     
     Attributes:
         project_path: 项目路径
-        force_default_rules: 是否强制使用默认规则
-        skip_extract: 是否跳过函数内容提取
         rule_manager: 规则管理器
         ast_builder: AST 构建器
         call_graph_builder: 调用图构建器
@@ -37,25 +35,18 @@ class JavaSinkTracer:
         cache_manager: 缓存管理器
     """
     
-    def __init__(self, project_path: str, rules_path: str = DEFAULT_RULES_PATH,
-                 force_default_rules: bool = False, skip_extract: bool = False):
+    def __init__(self, project_path: str, rules_path: str = DEFAULT_RULES_PATH):
         """
         初始化 JavaSinkTracer
         
         Args:
             project_path: 项目路径
             rules_path: 规则文件路径
-            force_default_rules: 是否强制使用默认规则
-            skip_extract: 是否跳过函数内容提取
         """
         self.project_path = project_path
-        self.force_default_rules = force_default_rules
-        self.skip_extract = skip_extract
         
         # 初始化各模块
-        self.rule_manager = RuleManager(
-            project_path, rules_path, force_default_rules, skip_extract
-        )
+        self.rule_manager = RuleManager(project_path, rules_path)
         
         self.ast_builder = ASTBuilder(
             project_path, self.rule_manager.get_path_exclusions()
@@ -144,6 +135,7 @@ class JavaSinkTracer:
             # 恢复新增的数据（兼容旧缓存）
             self.ast_builder.method_return_types = cache_data.get("method_return_types", {})
             self.ast_builder.import_mapping = cache_data.get("import_mapping", {})
+            self.ast_builder.class_file_mapping = cache_data.get("class_file_mapping", {})
             
             # 恢复调用图构建器状态
             self.call_graph_builder = CallGraphBuilder(
@@ -209,10 +201,6 @@ def run():
                        help="待扫描的项目本地路径根目录")
     parser.add_argument('-r', "--rebuild", action='store_true',
                        help="强制重新构建 AST，忽略已存在的缓存文件")
-    parser.add_argument('-f', "--force-default-rules", action='store_true',
-                       help="强制使用默认规则文件，忽略项目中的规则文件")
-    parser.add_argument('-n', "--no-extract", action='store_true',
-                       help="不提取函数内容，仅生成调用链")
     
     args = parser.parse_args()
     
@@ -225,9 +213,7 @@ def run():
     # 创建分析器并执行分析
     analyzer = JavaSinkTracer(
         java_project_path,
-        DEFAULT_RULES_PATH,
-        force_default_rules=args.force_default_rules,
-        skip_extract=args.no_extract
+        DEFAULT_RULES_PATH
     )
     
     # 构建 AST
